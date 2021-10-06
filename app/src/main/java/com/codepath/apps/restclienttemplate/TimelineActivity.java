@@ -28,6 +28,7 @@ public class TimelineActivity extends AppCompatActivity {
     List<Tweet> tweets ;
     TweetsAdapter adapter ;
     SwipeRefreshLayout swipeContainer ;
+    EndlessRecyclerViewScrollListener scrollListener ;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -35,7 +36,7 @@ public class TimelineActivity extends AppCompatActivity {
         setContentView(R.layout.activity_timeline);
 
        client = TwitterApp.getRestClient(this);
-       rvTweets.findViewById(R.id.rvTweets);
+
 
         swipeContainer = findViewById(R.id.swipeContainer) ;
         // Configure the refreshing colors
@@ -53,14 +54,48 @@ public class TimelineActivity extends AppCompatActivity {
         });
 
        // Find the recycle view
-
+        rvTweets= findViewById(R.id.rvTweets);
        // init the list of tweets anda adapter
         tweets = new ArrayList<>();
         adapter = new TweetsAdapter(this, tweets);
-       // Recycle view setup: layout manager and the adapter
-        rvTweets.setLayoutManager(new LinearLayoutManager(this));
+        LinearLayoutManager LayoutManager = new LinearLayoutManager(this);
+                // Recycle view setup: layout manager and the adapter
+                rvTweets.setLayoutManager(new LinearLayoutManager(this));
         rvTweets.setAdapter(adapter);
+        scrollListener = new EndlessRecyclerViewScrollListener(LayoutManager) {
+            @Override
+            public void onLoadMore(int page, int totalItemsCount, RecyclerView view) {
+                loadMoreData();
+
+            }
+        };
+        rvTweets.addOnScrollListener(scrollListener);
        populateHomeTimeline();
+    }
+
+    private void loadMoreData() {
+        client.getNextPageOfTweets(new JsonHttpResponseHandler() {
+            @Override
+            public void onSuccess(int statusCode, Headers headers, JSON json) {
+                Log.i(TAG, "On Success load more data" + json.toString());
+                JSONArray jsonArray = json.jsonArray;
+                try {
+                    List<Tweet> tweets =Tweet.fromJsomArray(jsonArray);
+                    // 3. Append the new data objects to the existing set of items inside the array of items
+                    // 4. Notify the adapter of the new items made with `notifyItemRangeInserted()
+                    adapter.addAll(tweets);
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                }
+
+            }
+
+            @Override
+            public void onFailure(int statusCode, Headers headers, String response, Throwable throwable) {
+                Log.e(TAG, "Failure load more data", throwable);
+
+            }
+        }, tweets.get(tweets.size() - 1 ).id);
     }
 
     private void populateHomeTimeline() {
